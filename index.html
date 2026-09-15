@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clue - Single Player</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>Clue: Single Player Edition</h1>
+    </header>
+
+    <main class="game-container">
+        <!-- Log of game actions -->
+        <section id="game-log-container">
+            <h2>Game Log</h2>
+            <div id="game-log"></div>
+        </section>
+
+        <!-- Player controls and current hand -->
+        <section id="player-dashboard">
+            <div id="player-hand">
+                <h2>Your Cards</h2>
+                <ul id="hand-list"></ul>
+            </div>
+
+            <div id="detective-notebook">
+                <h2>Detective Notebook</h2>
+                <div id="notebook-checks"></div>
+            </div>
+
+            <div id="action-controls">
+                <h2>Your Turn</h2>
+                <button id="roll-dice-btn">Roll Dice</button>
+                <button id="make-suggestion-btn">Make Suggestion</button>
+                <button id="accuse-btn">Make Accusation</button>
+            </div>
+        </section>
+    </main>
+
+    <script src="game.js"></script>
+</body>
+</html>
