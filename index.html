@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clue - Single Player</title>
+    <title>Clue: Single Player Edition</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -27,17 +27,49 @@
 
             <div id="detective-notebook">
                 <h2>Detective Notebook</h2>
-                <div id="notebook-checks"></div>
+                <div id="notebook-checks">
+                    <h3>Suspects</h3>
+                    <div id="notebook-suspects"></div>
+                    <h3>Weapons</h3>
+                    <div id="notebook-weapons"></div>
+                    <h3>Rooms</h3>
+                    <div id="notebook-rooms"></div>
+                </div>
             </div>
 
             <div id="action-controls">
                 <h2>Your Turn</h2>
-                <button id="roll-dice-btn">Roll Dice</button>
+                <button id="end-turn-btn">End Turn / AI Turn</button>
                 <button id="make-suggestion-btn">Make Suggestion</button>
                 <button id="accuse-btn">Make Accusation</button>
             </div>
         </section>
     </main>
+
+    <!-- Suggestion Pop-up Controls -->
+    <div id="suggestion-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h2>Make a Suggestion</h2>
+            <label>Suspect: <select id="suspect-select"></select></label><br><br>
+            <label>Weapon: <select id="weapon-select"></select></label><br><br>
+            <label>Room: <select id="room-select"></select></label><br><br>
+            <button id="submit-suggestion-btn">Submit Suggestion</button>
+            <button id="cancel-suggestion-btn">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Accusation Pop-up Controls -->
+    <div id="accusation-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h2>Make a Final Accusation</h2>
+            <p>Warning: An incorrect accusation will eliminate you from the game!</p>
+            <label>Suspect: <select id="accuse-suspect-select"></select></label><br><br>
+            <label>Weapon: <select id="accuse-weapon-select"></select></label><br><br>
+            <label>Room: <select id="accuse-room-select"></select></label><br><br>
+            <button id="submit-accusation-btn">Confirm Accusation</button>
+            <button id="cancel-accusation-btn">Cancel</button>
+        </div>
+    </div>
 
     <script src="game.js"></script>
 </body>
