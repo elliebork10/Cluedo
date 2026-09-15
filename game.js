@@ -51,28 +51,20 @@ function initGame() {
     let deck = [...shufSuspects, ...shufWeapons, ...shufRooms];
     deck = shuffle(deck);
 
-    // 3. Define Players & AI Memory Engines
+    // 3. Define Players & AI Memory
     players = [
-        { name: 'You (Player)', isAI: false, hand: [], active: true, eliminatedCards: new Set(), knownHands: {} },
-        { name: 'Colonel Mustard (AI)', isAI: true, hand: [], active: true, eliminatedCards: new Set(), knownHands: {} },
-        { name: 'Mrs. Peacock (AI)', isAI: true, hand: [], active: true, eliminatedCards: new Set(), knownHands: {} },
-        { name: 'Professor Plum (AI)', isAI: true, hand: [], active: true, eliminatedCards: new Set(), knownHands: {} }
+        { name: 'You (Player)', isAI: false, hand: [], active: true, eliminatedCards: new Set() },
+        { name: 'Colonel Mustard (AI)', isAI: true, hand: [], active: true, eliminatedCards: new Set() },
+        { name: 'Mrs. Peacock (AI)', isAI: true, hand: [], active: true, eliminatedCards: new Set() },
+        { name: 'Professor Plum (AI)', isAI: true, hand: [], active: true, eliminatedCards: new Set() }
     ];
-
-    // Initialize player knowledge maps
-    players.forEach(p => {
-        players.forEach(otherP => {
-            p.knownHands[otherP.name] = new Set();
-        });
-    });
 
     // 4. Deal Cards Round-Robin
     let p = 0;
     while (deck.length > 0) {
         const card = deck.pop();
         players[p].hand.push(card);
-        players[p].eliminatedCards.add(card); // Cards in own hand are not in envelope
-        players[p].knownHands[players[p].name].add(card);
+        players[p].eliminatedCards.add(card); // Players eliminate cards held in their own hand
         p = (p + 1) % players.length;
     }
 
@@ -191,24 +183,10 @@ function handleSuggestion(suggesterIndex, suspect, weapon, room) {
                 suggester.eliminatedCards.add(chosenCard);
             }
 
-            // Public knowledge update: Everyone knows responder holds at least one of these 3 cards
-            players.forEach(p => {
-                if (p.isAI) {
-                    p.knownHands[responder.name].add(`${suspect}|${weapon}|${room}`);
-                }
-            });
-
             disproven = true;
-            break; // First matching player disproves; turn sequence completes
+            break; // First matching player disproves; sequence ends
         } else {
             logMessage(`⏩ ${responder.name} has no matching cards and skips.`);
-
-            // Public knowledge update: Everyone eliminates these 3 cards from responder's hand
-            players.forEach(p => {
-                if (p.isAI) {
-                    // AI tracks that responder holds none of these 3 cards
-                }
-            });
         }
     }
 
@@ -286,37 +264,41 @@ function executeAITurn(aiIndex) {
 
     const ai = players[aiIndex];
 
-    // Deduce unknown cards
-    const unknownSuspects = SUSPECTS.filter(s => !ai.eliminatedCards.has(s));
-    const unknownWeapons = WEAPONS.filter(w => !ai.eliminatedCards.has(w));
-    const unknownRooms = ROOMS.filter(r => !ai.eliminatedCards.has(r));
+    const getUnknowns = () => ({
+        suspects: SUSPECTS.filter(s => !ai.eliminatedCards.has(s)),
+        weapons: WEAPONS.filter(w => !ai.eliminatedCards.has(w)),
+        rooms: ROOMS.filter(r => !ai.eliminatedCards.has(r))
+    });
 
-    // Check for winning condition
-    if (unknownSuspects.length === 1 && unknownWeapons.length === 1 && unknownRooms.length === 1) {
-        handleAccusation(aiIndex, unknownSuspects[0], unknownWeapons[0], unknownRooms[0]);
+    let state = getUnknowns();
+
+    // 1. Check if AI already knows the solution BEFORE making a suggestion
+    if (state.suspects.length === 1 && state.weapons.length === 1 && state.rooms.length === 1) {
+        handleAccusation(aiIndex, state.suspects[0], state.weapons[0], state.rooms[0]);
         return;
     }
 
-    // Pick targeted choices for suggestion
-    const sugSuspect = unknownSuspects.length > 0 ? getRandomItem(unknownSuspects) : getRandomItem(SUSPECTS);
-    const sugWeapon = unknownWeapons.length > 0 ? getRandomItem(unknownWeapons) : getRandomItem(WEAPONS);
-    const sugRoom = unknownRooms.length > 0 ? getRandomItem(unknownRooms) : getRandomItem(ROOMS);
+    // 2. Make targeted suggestion
+    const sugSuspect = state.suspects.length > 0 ? getRandomItem(state.suspects) : getRandomItem(SUSPECTS);
+    const sugWeapon = state.weapons.length > 0 ? getRandomItem(state.weapons) : getRandomItem(WEAPONS);
+    const sugRoom = state.rooms.length > 0 ? getRandomItem(state.rooms) : getRandomItem(ROOMS);
 
     handleSuggestion(aiIndex, sugSuspect, sugWeapon, sugRoom);
 
-    // Re-check after gathering suggestion results
-    const postSuspects = SUSPECTS.filter(s => !ai.eliminatedCards.has(s));
-    const postWeapons = WEAPONS.filter(w => !ai.eliminatedCards.has(w));
-    const postRooms = ROOMS.filter(r => !ai.eliminatedCards.has(r));
+    // 3. Re-check knowledge IMMEDIATELY after suggestion completes
+    state = getUnknowns();
 
-    if (postSuspects.length === 1 && postWeapons.length === 1 && postRooms.length === 1) {
+    if (state.suspects.length === 1 && state.weapons.length === 1 && state.rooms.length === 1) {
+        logMessage(`💡 ${ai.name} solved the case!`);
         setTimeout(() => {
-            if (gameActive) handleAccusation(aiIndex, postSuspects[0], postWeapons[0], postRooms[0]);
-        }, 1000);
+            if (gameActive) {
+                handleAccusation(aiIndex, state.suspects[0], state.weapons[0], state.rooms[0]);
+            }
+        }, 800);
         return;
     }
 
-    setTimeout(advanceTurn, 1200);
+    setTimeout(advanceTurn, 1000);
 }
 
 function disableControls() {
