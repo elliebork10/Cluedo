@@ -194,4 +194,37 @@ button:hover {
 .modal-content p {
     color: #f87171;
     font-size: 0.85rem;
+}#notebook-grid {
+    background: #1e293b;
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+}
+
+.notebook-header, .notebook-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr;
+    align-items: center;
+    padding: 4px 0;
+    border-bottom: 1px solid #334155;
+}
+
+.notebook-header {
+    font-weight: bold;
+    color: #94a3b8;
+}
+
+.notebook-category-title {
+    grid-column: 1 / -1;
+    font-weight: bold;
+    color: #f8fafc;
+    background: #0f172a;
+    padding: 4px 8px;
+    margin-top: 6px;
+    border-radius: 4px;
+}
+
+.notebook-row input[type="radio"] {
+    cursor: pointer;
+    justify-self: center;
 }

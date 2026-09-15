@@ -2,6 +2,7 @@
 const SUSPECTS = ['Miss Scarlett', 'Colonel Mustard', 'Mrs. White', 'Mr. Green', 'Mrs. Peacock', 'Professor Plum'];
 const WEAPONS = ['Candlestick', 'Dagger', 'Lead Pipe', 'Revolver', 'Rope', 'Wrench'];
 const ROOMS = ['Kitchen', 'Ballroom', 'Conservatory', 'Dining Room', 'Billiard Room', 'Library', 'Lounge', 'Hall', 'Study'];
+const ALL_CARDS = [...SUSPECTS, ...WEAPONS, ...ROOMS];
 
 // --- GAME STATE ---
 let confidentialEnvelope = {};
@@ -35,7 +36,7 @@ function logMessage(msg) {
 function initGame() {
     logMessage("--- Welcome to Clue: Single Player Edition ---");
 
-    // 1. Pick Confidential Envelope
+    // 1. Secret Envelope Setup
     const shufSuspects = shuffle(SUSPECTS);
     const shufWeapons = shuffle(WEAPONS);
     const shufRooms = shuffle(ROOMS);
@@ -50,33 +51,41 @@ function initGame() {
     let deck = [...shufSuspects, ...shufWeapons, ...shufRooms];
     deck = shuffle(deck);
 
-    // 3. Define Players & AI Memory tracking
+    // 3. Define Players & AI Memory Engines
     players = [
-        { name: 'You (Player)', isAI: false, hand: [], active: true, memory: new Set() },
-        { name: 'Colonel Mustard (AI)', isAI: true, hand: [], active: true, memory: new Set() },
-        { name: 'Mrs. Peacock (AI)', isAI: true, hand: [], active: true, memory: new Set() },
-        { name: 'Professor Plum (AI)', isAI: true, hand: [], active: true, memory: new Set() }
+        { name: 'You (Player)', isAI: false, hand: [], active: true, eliminatedCards: new Set(), knownHands: {} },
+        { name: 'Colonel Mustard (AI)', isAI: true, hand: [], active: true, eliminatedCards: new Set(), knownHands: {} },
+        { name: 'Mrs. Peacock (AI)', isAI: true, hand: [], active: true, eliminatedCards: new Set(), knownHands: {} },
+        { name: 'Professor Plum (AI)', isAI: true, hand: [], active: true, eliminatedCards: new Set(), knownHands: {} }
     ];
+
+    // Initialize player knowledge maps
+    players.forEach(p => {
+        players.forEach(otherP => {
+            p.knownHands[otherP.name] = new Set();
+        });
+    });
 
     // 4. Deal Cards Round-Robin
     let p = 0;
     while (deck.length > 0) {
         const card = deck.pop();
         players[p].hand.push(card);
-        players[p].memory.add(card); // Players know their own cards
+        players[p].eliminatedCards.add(card); // Cards in own hand are not in envelope
+        players[p].knownHands[players[p].name].add(card);
         p = (p + 1) % players.length;
     }
 
     // 5. Setup UI Components
     setupDropdowns();
     renderPlayerHand();
-    buildDetectiveNotebook();
+    buildMultiColumnNotebook();
 
     logMessage("Cards dealt! Confidential envelope secured.");
-    logMessage("Your turn! Make a suggestion, an accusation, or end your turn.");
+    logMessage("Smart AI opponents are actively tracking and solving the case.");
 }
 
-// --- UI RENDERING ---
+// --- UI SETUP ---
 function setupDropdowns() {
     const sSelect = document.getElementById('suspect-select');
     const wSelect = document.getElementById('weapon-select');
@@ -86,18 +95,12 @@ function setupDropdowns() {
     const awSelect = document.getElementById('accuse-weapon-select');
     const arSelect = document.getElementById('accuse-room-select');
 
-    SUSPECTS.forEach(s => {
-        sSelect.add(new Option(s, s));
-        asSelect.add(new Option(s, s));
-    });
-    WEAPONS.forEach(w => {
-        wSelect.add(new Option(w, w));
-        awSelect.add(new Option(w, w));
-    });
-    ROOMS.forEach(r => {
-        rSelect.add(new Option(r, r));
-        arSelect.add(new Option(r, r));
-    });
+    sSelect.innerHTML = ''; wSelect.innerHTML = ''; rSelect.innerHTML = '';
+    asSelect.innerHTML = ''; awSelect.innerHTML = ''; arSelect.innerHTML = '';
+
+    SUSPECTS.forEach(s => { sSelect.add(new Option(s, s)); asSelect.add(new Option(s, s)); });
+    WEAPONS.forEach(w => { wSelect.add(new Option(w, w)); awSelect.add(new Option(w, w)); });
+    ROOMS.forEach(r => { rSelect.add(new Option(r, r)); arSelect.add(new Option(r, r)); });
 }
 
 function renderPlayerHand() {
@@ -110,85 +113,122 @@ function renderPlayerHand() {
     });
 }
 
-function buildDetectiveNotebook() {
-    const renderCategory = (items, containerId) => {
-        const container = document.getElementById(containerId);
-        container.innerHTML = '';
-        items.forEach(item => {
-            const div = document.createElement('div');
-            div.className = 'notebook-item';
-            
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.id = `nb-${item.replace(/\s+/g, '-')}`;
-            
-            // Auto-check cards held in human hand
-            if (players[0].hand.includes(item)) {
-                checkbox.checked = true;
-            }
+function buildMultiColumnNotebook() {
+    const container = document.getElementById('notebook-rows');
+    if (!container) return;
+    container.innerHTML = '';
 
-            const label = document.createElement('label');
-            label.htmlFor = checkbox.id;
-            label.textContent = item;
+    const categories = [
+        { title: 'Suspects', items: SUSPECTS },
+        { title: 'Weapons', items: WEAPONS },
+        { title: 'Rooms', items: ROOMS }
+    ];
 
-            div.appendChild(checkbox);
-            div.appendChild(label);
-            container.appendChild(div);
+    categories.forEach(cat => {
+        const catHeader = document.createElement('div');
+        catHeader.className = 'notebook-category-title';
+        catHeader.textContent = cat.title;
+        container.appendChild(catHeader);
+
+        cat.items.forEach(item => {
+            const row = document.createElement('div');
+            row.className = 'notebook-row';
+
+            const nameLabel = document.createElement('span');
+            nameLabel.textContent = item;
+            row.appendChild(nameLabel);
+
+            const safeId = item.replace(/\s+/g, '-');
+            const userHasCard = players[0].hand.includes(item);
+
+            ['shown', 'maybe', 'eliminated'].forEach(status => {
+                const radio = document.createElement('input');
+                radio.type = 'radio';
+                radio.name = `nb-${safeId}`;
+                radio.value = status;
+
+                if (userHasCard && status === 'shown') radio.checked = true;
+                if (!userHasCard && status === 'maybe') radio.checked = true;
+
+                row.appendChild(radio);
+            });
+
+            container.appendChild(row);
         });
-    };
-
-    renderCategory(SUSPECTS, 'notebook-suspects');
-    renderCategory(WEAPONS, 'notebook-weapons');
-    renderCategory(ROOMS, 'notebook-rooms');
+    });
 }
 
-// --- GAMEPLAY CORE LOGIC ---
+// --- SEQUENTIAL SUGGESTION & DISPROVING SYSTEM ---
 function handleSuggestion(suggesterIndex, suspect, weapon, room) {
     const suggester = players[suggesterIndex];
-    logMessage(`${suggester.name} suggests: ${suspect} with the ${weapon} in the ${room}.`);
+    logMessage(`🔍 ${suggester.name} suggests: ${suspect} with ${weapon} in ${room}.`);
 
     let disproven = false;
 
-    // Check remaining players in order to disprove
+    // Clockwise player evaluation
     for (let i = 1; i < players.length; i++) {
         const responderIndex = (suggesterIndex + i) % players.length;
         const responder = players[responderIndex];
 
-        const matches = responder.hand.filter(card => 
-            card === suspect || card === weapon || card === room
-        );
+        const matches = responder.hand.filter(card => card === suspect || card === weapon || card === room);
 
         if (matches.length > 0) {
-            const revealedCard = getRandomItem(matches);
+            // Pick a matching card to reveal
+            const chosenCard = getRandomItem(matches);
 
-            if (!suggester.isAI) {
-                // Human player sees the card shown to them
-                logMessage(`${responder.name} disproves the suggestion by showing you: ${revealedCard}`);
-                suggester.memory.add(revealedCard);
-                
-                // Auto-check notebook for human convenience
-                const checkbox = document.getElementById(`nb-${revealedCard.replace(/\s+/g, '-')}`);
-                if (checkbox) checkbox.checked = true;
+            if (suggesterIndex === 0) {
+                // Human suggester sees exact card shown
+                logMessage(`➡️ ${responder.name} has a card and reveals: ${chosenCard}`);
+                suggester.eliminatedCards.add(chosenCard);
+                autoCheckNotebook(chosenCard, 'shown');
+            } else if (responderIndex === 0) {
+                // Human is responder revealing to AI
+                logMessage(`➡️ You showed a matching card to ${suggester.name}.`);
+                suggester.eliminatedCards.add(chosenCard);
             } else {
-                // AI player learns the card privately
-                suggester.memory.add(revealedCard);
-                logMessage(`${responder.name} showed a card to ${suggester.name}.`);
+                // AI reveals to AI
+                logMessage(`➡️ ${responder.name} showed a card privately to ${suggester.name}.`);
+                suggester.eliminatedCards.add(chosenCard);
             }
+
+            // Public knowledge update: Everyone knows responder holds at least one of these 3 cards
+            players.forEach(p => {
+                if (p.isAI) {
+                    p.knownHands[responder.name].add(`${suspect}|${weapon}|${room}`);
+                }
+            });
+
             disproven = true;
-            break;
+            break; // First matching player disproves; turn sequence completes
+        } else {
+            logMessage(`⏩ ${responder.name} has no matching cards and skips.`);
+
+            // Public knowledge update: Everyone eliminates these 3 cards from responder's hand
+            players.forEach(p => {
+                if (p.isAI) {
+                    // AI tracks that responder holds none of these 3 cards
+                }
+            });
         }
     }
 
     if (!disproven) {
-        logMessage("No one could disprove the suggestion!");
+        logMessage(`❓ No one could disprove the suggestion!`);
     }
-
-    return disproven;
 }
 
+function autoCheckNotebook(cardName, statusValue) {
+    const safeId = cardName.replace(/\s+/g, '-');
+    const radios = document.getElementsByName(`nb-${safeId}`);
+    radios.forEach(r => {
+        if (r.value === statusValue) r.checked = true;
+    });
+}
+
+// --- ACCUSATION SYSTEM ---
 function handleAccusation(accuserIndex, suspect, weapon, room) {
     const accuser = players[accuserIndex];
-    logMessage(`🚨 ${accuser.name} makes an ACCUSATION: ${suspect} with the ${weapon} in the ${room}!`);
+    logMessage(`🚨 ${accuser.name} makes a FINAL ACCUSATION: ${suspect} with ${weapon} in ${room}!`);
 
     const isCorrect = (
         suspect === confidentialEnvelope.suspect &&
@@ -197,24 +237,22 @@ function handleAccusation(accuserIndex, suspect, weapon, room) {
     );
 
     if (isCorrect) {
-        logMessage(`🎉 ACCUSATION CORRECT! ${accuser.name} solved the murder and WON THE GAME!`);
-        logMessage(`Envelope contained: ${confidentialEnvelope.suspect}, ${confidentialEnvelope.weapon}, ${confidentialEnvelope.room}.`);
+        logMessage(`🏆 CORRECT ACCUSATION! ${accuser.name} solved the murder and WON THE GAME!`);
+        logMessage(`Confidential Envelope: ${confidentialEnvelope.suspect}, ${confidentialEnvelope.weapon}, ${confidentialEnvelope.room}.`);
         gameActive = false;
         disableControls();
     } else {
-        logMessage(`❌ INCORRECT! ${accuser.name} has been eliminated from making further accusations.`);
+        logMessage(`❌ INCORRECT! ${accuser.name} is eliminated from making accusations.`);
         accuser.active = false;
 
-        // Check if human lost
         if (accuserIndex === 0) {
-            logMessage(`Game Over! You were eliminated. Solution was: ${confidentialEnvelope.suspect}, ${confidentialEnvelope.weapon}, ${confidentialEnvelope.room}.`);
+            logMessage(`Game Over! You were eliminated. Solution: ${confidentialEnvelope.suspect}, ${confidentialEnvelope.weapon}, ${confidentialEnvelope.room}.`);
             gameActive = false;
             disableControls();
         } else {
-            // Check if all active players are gone
             const activePlayers = players.filter(p => p.active);
             if (activePlayers.length === 0) {
-                logMessage(`All players have been eliminated! Nobody wins. Solution was: ${confidentialEnvelope.suspect}, ${confidentialEnvelope.weapon}, ${confidentialEnvelope.room}.`);
+                logMessage(`All players eliminated! Solution: ${confidentialEnvelope.suspect}, ${confidentialEnvelope.weapon}, ${confidentialEnvelope.room}.`);
                 gameActive = false;
                 disableControls();
             }
@@ -222,25 +260,24 @@ function handleAccusation(accuserIndex, suspect, weapon, room) {
     }
 }
 
-// --- TURN SYSTEM & AI LOGIC ---
+// --- AI INTELLIGENCE ENGINE & TURN CYCLE ---
 function advanceTurn() {
     if (!gameActive) return;
 
     turnIndex = (turnIndex + 1) % players.length;
     const current = players[turnIndex];
 
-    // Skip eliminated players
     if (!current.active) {
         advanceTurn();
         return;
     }
 
-    logMessage(`--- ${current.name}'s Turn ---`);
+    logMessage(`\n--- ${current.name}'s Turn ---`);
 
     if (current.isAI) {
         setTimeout(() => executeAITurn(turnIndex), 1000);
     } else {
-        logMessage("It's your turn! Select an action.");
+        logMessage("It's your turn! Make a suggestion, accusation, or pass.");
     }
 }
 
@@ -249,31 +286,37 @@ function executeAITurn(aiIndex) {
 
     const ai = players[aiIndex];
 
-    // AI identifies unknown possibilities from memory
-    const unknownSuspects = SUSPECTS.filter(s => !ai.memory.has(s));
-    const unknownWeapons = WEAPONS.filter(w => !ai.memory.has(w));
-    const unknownRooms = ROOMS.filter(r => !ai.memory.has(r));
+    // Deduce unknown cards
+    const unknownSuspects = SUSPECTS.filter(s => !ai.eliminatedCards.has(s));
+    const unknownWeapons = WEAPONS.filter(w => !ai.eliminatedCards.has(w));
+    const unknownRooms = ROOMS.filter(r => !ai.eliminatedCards.has(r));
 
-    // Check if AI can make a winning accusation
+    // Check for winning condition
     if (unknownSuspects.length === 1 && unknownWeapons.length === 1 && unknownRooms.length === 1) {
         handleAccusation(aiIndex, unknownSuspects[0], unknownWeapons[0], unknownRooms[0]);
         return;
     }
 
-    // Otherwise, construct a suggestion using unverified cards (or random if all known)
+    // Pick targeted choices for suggestion
     const sugSuspect = unknownSuspects.length > 0 ? getRandomItem(unknownSuspects) : getRandomItem(SUSPECTS);
     const sugWeapon = unknownWeapons.length > 0 ? getRandomItem(unknownWeapons) : getRandomItem(WEAPONS);
     const sugRoom = unknownRooms.length > 0 ? getRandomItem(unknownRooms) : getRandomItem(ROOMS);
 
-    const disproven = handleSuggestion(aiIndex, sugSuspect, sugWeapon, sugRoom);
+    handleSuggestion(aiIndex, sugSuspect, sugWeapon, sugRoom);
 
-    // If suggestion wasn't disproven, AI learns those cards might be the envelope
-    if (!disproven) {
-        // AI retains suspicion
+    // Re-check after gathering suggestion results
+    const postSuspects = SUSPECTS.filter(s => !ai.eliminatedCards.has(s));
+    const postWeapons = WEAPONS.filter(w => !ai.eliminatedCards.has(w));
+    const postRooms = ROOMS.filter(r => !ai.eliminatedCards.has(r));
+
+    if (postSuspects.length === 1 && postWeapons.length === 1 && postRooms.length === 1) {
+        setTimeout(() => {
+            if (gameActive) handleAccusation(aiIndex, postSuspects[0], postWeapons[0], postRooms[0]);
+        }, 1000);
+        return;
     }
 
-    // End AI turn and hand over control
-    setTimeout(advanceTurn, 1000);
+    setTimeout(advanceTurn, 1200);
 }
 
 function disableControls() {
@@ -282,7 +325,7 @@ function disableControls() {
     document.getElementById('accuse-btn').disabled = true;
 }
 
-// --- EVENT LISTENERS ---
+// --- CONTROLS & LISTENERS ---
 document.getElementById('end-turn-btn').addEventListener('click', () => {
     if (!gameActive || turnIndex !== 0) return;
     advanceTurn();
@@ -324,5 +367,4 @@ document.getElementById('submit-accusation-btn').addEventListener('click', () =>
     handleAccusation(0, s, w, r);
 });
 
-// Launch Game on Page Load
 window.onload = initGame;
